@@ -7,6 +7,7 @@ class WebSocketService {
   WebSocketChannel? _channel;
   Timer? _heartbeatTimer;
   Timer? _reconnectTimer;
+  Timer? _statusSyncTimer;
   bool _intentionalClose = false;
   bool _connecting = false; // 防止重复连接
   int _reconnectAttempts = 0;
@@ -61,7 +62,8 @@ class WebSocketService {
 
       _startHeartbeat();
       // 连接成功后发送当前状态
-      Future.delayed(const Duration(milliseconds: 500), () {
+      _statusSyncTimer?.cancel();
+      _statusSyncTimer = Timer(const Duration(milliseconds: 500), () {
         if (_channel != null) {
           updateStatus(_lastStatus);
         }
@@ -110,6 +112,7 @@ class WebSocketService {
     _intentionalClose = true;
     _heartbeatTimer?.cancel();
     _reconnectTimer?.cancel();
+    _statusSyncTimer?.cancel();
     _channel?.sink.close();
     _channel = null;
     _connecting = false;

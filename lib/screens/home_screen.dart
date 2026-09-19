@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'package:flutter/material.dart';
 import '../config.dart';
 import '../services/websocket_service.dart';
@@ -11,20 +12,24 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final WebSocketService _wsService = WebSocketService();
+  StreamSubscription<bool>? _connectionSubscription;
   String _currentStatus = AppConfig.statusNotReady;
   bool _isConnected = false;
 
   @override
   void initState() {
     super.initState();
-    _wsService.connectionStream.listen((connected) {
-      setState(() => _isConnected = connected);
+    _connectionSubscription = _wsService.connectionStream.listen((connected) {
+      if (mounted) {
+        setState(() => _isConnected = connected);
+      }
     });
     _wsService.connect();
   }
 
   @override
   void dispose() {
+    _connectionSubscription?.cancel();
     _wsService.dispose();
     super.dispose();
   }

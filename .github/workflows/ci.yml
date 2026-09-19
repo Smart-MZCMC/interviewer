@@ -1,0 +1,56 @@
+name: CI
+
+# 采访端：Flutter Web 应用
+# 构建产物同步到 backend 的 public/interviewer，由后端 :3002 托管。
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Test and build web
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # pubspec.lock 要求 flutter >= 3.44.0，stable 渠道即满足。
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+
+      - name: Flutter version
+        run: flutter --version
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Analyze
+        run: flutter analyze
+
+      - name: Test
+        run: flutter test
+
+      - name: Build Web release
+        run: flutter build web --release
+
+      # 产物结构：build/web/{index.html,main.dart.js,assets/**,canvaskit/**}，
+      # 与后端 public/interviewer 的期望内容一致。
+      - name: Show build output
+        run: |
+          echo "files: $(find build/web -type f | wc -l)"
+          du -sh build/web
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: interviewer-web
+          path: build/web
+          if-no-files-found: error
+          retention-days: 7

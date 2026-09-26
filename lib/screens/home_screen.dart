@@ -4,14 +4,22 @@ import '../config.dart';
 import '../services/websocket_service.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  /// 注入 WebSocket 服务，**仅用于测试**。
+  ///
+  /// 真实连接会发起网络请求并在失败时留下重连 Timer，widget test 结束后
+  /// 会被 "A Timer is still pending" 断言拦下。所以测试要传一个
+  /// connect() 被覆盖成空实现的假对象。
+  final WebSocketService? service;
+
+  const HomeScreen({super.key, this.service});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  final WebSocketService _wsService = WebSocketService();
+  // late final 才能在初始化器里读 widget。
+  late final WebSocketService _wsService = widget.service ?? WebSocketService();
   StreamSubscription<bool>? _connectionSubscription;
   String _currentStatus = AppConfig.statusNotReady;
   bool _isConnected = false;

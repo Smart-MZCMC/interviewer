@@ -7,6 +7,9 @@ import 'package:http/http.dart' as http;
 import 'config.dart';
 import 'screens/home_screen.dart';
 
+/// 随包分发的中文子集字体名，须与 pubspec.yaml 里 fonts 段的 family 一致。
+const String kAppFontFamily = 'NotoSansSCSubset';
+
 Future<void> main() async {
   // 必须在 runApp 之前完成：HomeScreen 构造时就会读 AppConfig.pointName，
   // WebSocketService 也会立刻用 wsUrl 建连。
@@ -47,11 +50,19 @@ class MyApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // 用随包分发的中文子集字体，不依赖 fonts.gstatic.com。
+    // 见 pubspec.yaml 里 fonts 段的说明。
+    //
+    // fontFamily 是 ThemeData 的构造参数而不是 copyWith 参数，
+    // 所以要对 textTheme / primaryTextTheme 显式 apply。
+    final base = ThemeData.dark().copyWith(scaffoldBackgroundColor: Colors.black);
+
     return MaterialApp(
       title: '采访端',
       debugShowCheckedModeBanner: false,
-      theme: ThemeData.dark().copyWith(
-        scaffoldBackgroundColor: Colors.black,
+      theme: base.copyWith(
+        textTheme: base.textTheme.apply(fontFamily: kAppFontFamily),
+        primaryTextTheme: base.primaryTextTheme.apply(fontFamily: kAppFontFamily),
       ),
       home: const HomeScreen(),
     );

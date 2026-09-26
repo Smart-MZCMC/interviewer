@@ -68,7 +68,8 @@ flutter test
 build-web.bat
 ```
 
-它会执行 `flutter pub get` → 构建 → 同步到 `backend/public/interviewer/`。
+它会执行 `flutter pub get` → 构建 → `trim-web.mjs` 裁剪死重 → 同步到
+`backend/public/interviewer/` 并再次裁剪。
 
 ## ⚠️ 两个不能省的构建参数
 
@@ -86,11 +87,51 @@ flutter build web --release --base-href /interviewer/ --no-web-resources-cdn
 在 Git Bash 下调用时还需要 `MSYS_NO_PATHCONV=1`，否则 `/interviewer/` 会被改写成
 `C:/Program Files/Git/interviewer/`。`build-web.bat` 已经处理好了。
 
-::: warning 还有一个已知限制
-Flutter 的中文回退字体（Noto Sans SC）仍然从 `fonts.gstatic.com` 拉。
-断外网时布局和图标正常，但**汉字不显示**。本应用界面只用到约 29 个汉字，
-做个子集字体只有几 KB，是干净的解法——需要能访问外网下载 Noto Sans CJK（OFL 许可）。
-:::
+## 首屏体积与离线能力
+
+原始产物 **39.8MB**，但浏览器冷启动只下载其中约 7.6MB。其余 30MB 是服务器磁盘
+和部署上传的负担。`trim-web.mjs` 会删掉它们：
+
+| 删掉 | 大小 | 为什么确定不会被下载 |
+| --- | --- | --- |
+| `*.symbols` 源映射 | 8.2MB | 只在 DevTools 调试时按需拉取 |
+| `canvaskit/` 顶层渲染器 | 7.0MB | 引擎在 Chrome/Edge 上选的是 `chromium` 变体，顶层这份实测未被请求 |
+| `skwasm*` / `wimp` | 11.9MB | 仅当 loader 显式配置对应 renderer 才加载 |
+| `experimental_webparagraph/` | 4.0MB | 实验特性，需在 index.html 显式引入 |
+
+> 「哪些不会被下载」是用浏览器 resource timing **实测**出来的，不是推测。
+> 注意引擎实际选的是 `canvaskit/chromium/canvaskit.wasm`（5.6MB），
+> 而顶层那份 6.9MB 的 `canvaskit.wasm` 从头到尾没被用到——这点很容易猜错。
+
+裁剪后 **8.9MB**，且必需文件齐全性有断言兜底。
+
+### 中文与拉丁字体都自带，不连 CDN
+
+Flutter Web 默认从 `fonts.gstatic.com` 拉 **Noto Sans SC** 和 **Roboto**。校园内网
+没有外网，这两个请求会一直挂着直到超时——**这是「首屏要等十多秒」的主要原因**，
+而且超时后汉字根本不显示（只剩图标和灰色块）。
+
+`make-subset-font.mjs` 从 Noto Sans SC 切出一份只含界面实际用到的字符的子集
+（约 254 个汉字 + 完整 ASCII，**237KB**），并在 `pubspec.yaml` 里注册两遍：
+
+- `NotoSansSCSubset` —— 界面文字
+- `Roboto` —— **顶替引擎的默认字体族**，让它不必去 CDN 找
+
+Noto Sans SC 采用 SIL Open Font License 1.1，允许再分发与子集化。
+
+结果：**外部请求 0 个**，界面文字全部正常显示。改动界面文案后重跑
+`node make-subset-font.mjs` 重新生成子集即可。
+
+### 实测数据（本机 loopback，仅供参考）
+
+| | 裁剪前 | 裁剪后 |
+| :--- | --- | --- |
+| 产物体积 | 39.8MB | **8.9MB** |
+| 实际下载 | 7.61MB | 7.84MB（含子集字体） |
+| 外部请求 | 6 个（gstatic 字体） | **0 个** |
+
+下载量基本没变，变的是**不再有会超时的外部请求**——现场网络越慢，
+这个差别越大。真正的下载大头是 `canvaskit/chromium/canvaskit.wasm`（5.6MB）。
 
 ## 通信
 

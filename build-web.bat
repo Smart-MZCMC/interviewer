@@ -14,6 +14,16 @@ REM     CanvasKit is fetched from gstatic.com by default. School LANs usually
 REM     have no internet access, so that turns into a blank page. With this
 REM     flag CanvasKit is loaded from the local canvaskit/ directory.
 REM
+REM  Then trim-web.mjs strips what the browser never downloads: 6 renderer
+REM  variants plus 8MB of source maps (39.8MB -> 8.7MB). The "safe to delete"
+REM  list was measured with the browser resource timing API rather than
+REM  guessed -- note the engine actually picks canvaskit/chromium/, and the
+REM  top-level canvaskit.wasm is never requested.
+REM
+REM  The CJK font is subset and bundled (see make-subset-font.mjs), so the
+REM  page makes no gstatic.com requests at all. That is what makes the first
+REM  paint fast on a LAN with no internet access.
+REM
 REM  MSYS_NO_PATHCONV=1: under Git Bash a leading /interviewer/ gets rewritten
 REM  to C:/Program Files/Git/interviewer/ and the base-href check fails.
 REM
@@ -31,15 +41,19 @@ if errorlevel 1 (
 	exit /b 1
 )
 
-echo [1/3] Fetching dependencies...
+echo [1/4] Fetching dependencies...
 call flutter pub get || goto :err
 
-echo [2/3] Building web bundle...
+echo [2/4] Building web bundle...
 call flutter build web --release --base-href /interviewer/ --no-web-resources-cdn || goto :err
 
-echo [3/3] Publishing to backend\public\interviewer...
+echo [3/4] Trimming unused renderers and source maps...
+node trim-web.mjs "build\web" || goto :err
+
+echo [4/4] Publishing to backend\public\interviewer...
 if not exist "..\backend\public\interviewer" mkdir "..\backend\public\interviewer"
 xcopy /E /I /Y /Q "build\web\*" "..\backend\public\interviewer\" >nul || goto :err
+node trim-web.mjs "..\backend\public\interviewer" || goto :err
 
 echo.
 echo Done. Output: ..\backend\public\interviewer

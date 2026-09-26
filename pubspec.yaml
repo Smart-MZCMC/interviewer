@@ -25,3 +25,23 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  # 自带中文子集字体。
+  #
+  # 不带的话，Flutter Web 会从 fonts.gstatic.com 拉完整的 Noto Sans SC。
+  # 校园内网没有外网，于是每次打开都要等这些请求超时——这正是「加载要等
+  # 十多秒」的主因，而且超时后汉字根本不显示。
+  #
+  # 这份子集由 `node make-subset-font.mjs` 从 Noto Sans SC 切出（OFL 1.1，
+  # 允许再分发与子集化），只含界面实际用到的 254 个汉字 + ASCII，约 237KB。
+  # 改动界面文案后重新跑一次该脚本即可。
+  fonts:
+    - family: NotoSansSCSubset
+      fonts:
+        - asset: assets/fonts/NotoSansSC-Subset.ttf
+    # Flutter Web 引擎的默认字体族是 Roboto，找不到本地定义时会去
+    # fonts.gstatic.com 拉。断网部署时这个请求会一直挂着，是「首屏要等
+    # 十多秒」的另一个主因。这里用同一份子集字体顶替 Roboto——子集里已经
+    # 包含完整 ASCII，界面上的数字与拉丁字符都能正常显示——从而彻底不依赖 CDN。
+    - family: Roboto
+      fonts:
+        - asset: assets/fonts/NotoSansSC-Subset.ttf

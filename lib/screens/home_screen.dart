@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import '../config.dart';
 import '../services/websocket_service.dart';
+import '../widgets/version_banner.dart';
 
 class HomeScreen extends StatefulWidget {
   /// 注入 WebSocket 服务，**仅用于测试**。
@@ -89,6 +90,9 @@ class _HomeScreenState extends State<HomeScreen> {
       body: SafeArea(
         child: Column(
           children: [
+            // 版本提示。低于最低适配版本时部分功能会异常，采访员该在按下
+            // 状态键之前就看到，而不是等播送中断才发现客户端太旧。
+            VersionBanner(serverUrl: AppConfig.serverUrl),
             // 顶部：采访点名称
             Container(
               width: double.infinity,

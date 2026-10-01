@@ -30,6 +30,30 @@ class AppConfig {
 
   /// 用 config.json 的内容覆盖默认值。
   ///
+  /// 从 [wsUrl] 推出后端 HTTP 根地址，供版本检查这类非 WebSocket 请求使用。
+  ///
+  /// 采访端的配置里只有 wsUrl。与其再加一个 serverUrl 让现场多填一份
+  /// （填错了就会指向另一台机器，而这类错误非常难排查），不如从已有的
+  /// wsUrl 推——两者本来就指向同一台服务。
+  ///
+  /// ws://host:3002/ws → http://host:3002
+  /// wss://host/ws     → https://host
+  static String get serverUrl {
+    var url = wsUrl.trim();
+    if (url.startsWith('wss://')) {
+      url = 'https://${url.substring('wss://'.length)}';
+    } else if (url.startsWith('ws://')) {
+      url = 'http://${url.substring('ws://'.length)}';
+    } else {
+      // 不是 ws:// 开头就无法可靠推断。返回原值让请求自己失败，
+      // 好过拼出一个看起来正常、实际指向别处的地址。
+      return url;
+    }
+    final slash = url.indexOf('/');
+    if (slash >= 0) url = url.substring(0, slash);
+    return url;
+  }
+
   /// 逐字段校验：类型不对或缺失就保留默认值，绝不因为配置文件写错
   /// 就让整个采访端起不来。
   static void applyRuntimeConfig(Map<String, dynamic> json) {

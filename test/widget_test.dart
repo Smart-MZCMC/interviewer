@@ -62,12 +62,33 @@ void main() {
     expect(AppConfig.pointCode, 'point_9');
     expect(AppConfig.pointName, '演播室');
 
+    // 凭据：用户名去空格，密码保留原样（首尾空格可能是密码的一部分），
+    // 且必须同时存在才算「配好了」。
+    AppConfig.applyRuntimeConfig(<String, dynamic>{
+      'username': ' point_1 ',
+      'password': ' p w ',
+    });
+    expect(AppConfig.username, 'point_1');
+    expect(AppConfig.password, ' p w ');
+    expect(AppConfig.hasCredentials, isTrue);
+
+    // 只配了账号、没配密码时不算「配好了」。
+    //
+    // 这里直接改字段而不是再 applyRuntimeConfig：空串在 applyRuntimeConfig
+    // 里表示「缺字段，保留原值」，用它是清不掉已有密码的。
+    AppConfig.username = 'only_user';
+    AppConfig.password = '';
+    expect(AppConfig.hasCredentials, isFalse);
+
     // 复位，避免影响其它用例
     AppConfig.applyRuntimeConfig(<String, dynamic>{
       'wsUrl': AppConfig.defaultWsUrl,
       'projectId': AppConfig.defaultProjectId,
       'pointCode': AppConfig.defaultPointCode,
       'pointName': AppConfig.defaultPointName,
+      'username': '',
+      'password': '',
     });
+    expect(AppConfig.hasCredentials, isFalse);
   });
 }

@@ -1,7 +1,10 @@
 {
-  "_comment": "采访端运行期配置。改这个文件即可换服务器/项目/采访点，不需要重新 flutter build web，改完刷新浏览器即可生效。注意：页面走 HTTPS 时 wsUrl 必须写 wss://，否则浏览器按混合内容拦截且不报错。",
+  "_comment": "采访端运行期配置。改这个文件即可换服务器/项目/采访点/账号，不需要重新 flutter build web，改完刷新浏览器即可生效。注意：页面走 HTTPS 时 wsUrl 必须写 wss://，否则浏览器按混合内容拦截且不报错。",
+  "_comment_credentials": "username/password 是采访端登录用的账号。后端把 REQUIRE_PROJECT_MEMBERSHIP 打开后，WebSocket 会校验这个账号是不是 projectId 的成员，届时没有凭据的采访端会连不上。留空表示不登录，行为与改动前一致——所以可以先把账号发下去、确认现场都能连上，再打开那个开关。",
   "wsUrl": "ws://zhdb.647382.xyz/ws",
   "projectId": 1,
   "pointCode": "point_1",
-  "pointName": "采访点 1"
+  "pointName": "采访点 1",
+  "username": "",
+  "password": ""
 }

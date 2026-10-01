@@ -22,6 +22,18 @@ class AppConfig {
   static String pointCode = defaultPointCode;
   static String pointName = defaultPointName;
 
+  /// 登录凭据。
+  ///
+  /// 采访端此前**连登录这个概念都没有**：它在服务端是匿名的，任何人拿到
+  /// 那个地址就能上报任意采访点的状态、监听整个项目的实时消息。后端启用
+  /// REQUIRE_PROJECT_MEMBERSHIP 之后，没有凭据的采访端会直接连不上，
+  /// 所以凭据必须在开关打开之前就位。
+  ///
+  /// 留空表示「这个部署还没配账号」：此时客户端不尝试登录，行为与改动前
+  /// 完全一致——开关默认关闭，现有现场不会因为缺凭据而断连。
+  static String username = '';
+  static String password = '';
+
   // 状态枚举，全平台一致，保持常量。
   static const String statusReady = 'ready';
   static const String statusPreparing = 'preparing';
@@ -82,5 +94,20 @@ class AppConfig {
     if (name is String && name.trim().isNotEmpty) {
       pointName = name.trim();
     }
+
+    final user = json['username'];
+    if (user is String && user.trim().isNotEmpty) {
+      username = user.trim();
+    }
+
+    // 密码不做 trim：首尾空格可能是密码的一部分，砍掉会让人对着
+    // 「密码错误」反复重填。只有整串空白才当作「没配」。
+    final pass = json['password'];
+    if (pass is String && pass.trim().isNotEmpty) {
+      password = pass;
+    }
   }
+
+  /// 是否配置了登录凭据。
+  static bool get hasCredentials => username.isNotEmpty && password.isNotEmpty;
 }

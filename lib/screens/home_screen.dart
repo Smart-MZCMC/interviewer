@@ -18,7 +18,7 @@ class HomeScreen extends StatefulWidget {
   State<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen> {
+class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   // late final 才能在初始化器里读 widget。
   late final WebSocketService _wsService = widget.service ?? WebSocketService();
   StreamSubscription<bool>? _connectionSubscription;
@@ -28,6 +28,7 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _connectionSubscription = _wsService.connectionStream.listen((connected) {
       if (mounted) {
         setState(() => _isConnected = connected);
@@ -36,8 +37,20 @@ class _HomeScreenState extends State<HomeScreen> {
     _wsService.connect();
   }
 
+  /// 页面切到后台 / 回到前台。
+  ///
+  /// 这不是「可选的优化」：记者把浏览器切走或锁屏后，WebSocket 往往还开着，
+  /// 服务端只靠 TCP 超时判断掉线要等很久，而导播端在这段时间里一直显示
+  /// 绿色「就绪」。所以在进入后台时主动上报 offline。
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    super.didChangeAppLifecycleState(state);
+    _wsService.setHidden(state != AppLifecycleState.resumed);
+  }
+
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _connectionSubscription?.cancel();
     _wsService.dispose();
     super.dispose();

@@ -26,12 +26,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   String _currentStatus = AppConfig.statusNotReady;
   bool _isConnected = false;
 
-  /// 当前正在播送的机位。来自服务端握手时下发的项目状态。
+/// 当前正在播送的机位。握手时的项目状态打底，之后由 shot_state 实时刷新。
   ///
   /// 记者需要知道现在画面在哪个机位——它决定了自己该不该出现在镜头里。
   /// 这个值以前是拿不到的：切台状态只在新的 shot_state 到来时广播一次，
   /// 采访端中途连上或重连后完全不知道当前在播什么。
   String _currentShot = '';
+
+  /// 本次要切过去的机位；空串表示没有预告。
+  ///
+  /// 与「正在播送」分开显示，是因为两者的行动含义不同：正在播送说明
+  /// 「你已经在镜头里了」，预告说明「准备一下，马上到你」。
+  String _nextShot = '';
 
   @override
   void initState() {
@@ -47,13 +53,37 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   }
 
   void _onMessage(Map<String, dynamic> msg) {
-    if (msg['type'] != 'system') return;
+    final type = msg['type'];
     final payload = msg['payload'];
+
+    if (type == 'shot_state') {
+      // 导播每次切台都会广播一份完整状态（当前 + 预告）。
+      //
+      // 之前只认握手时的 system 消息，于是这一整段直播期间显示的机位一直
+      // 是刚连上那一刻的值——切了台屏幕也不变，记者照着旧机位准备。
+      if (payload is! Map) return;
+      // 自己不上报 shot_state，但仍然按服务端给的权威值显示，不做本地推断。
+      final current = (payload['current'] ?? '') as String;
+      final next = (payload['next'] ?? '') as String;
+      if (current == _currentShot && next == _nextShot) return;
+      if (!mounted) return;
+      setState(() {
+        _currentShot = current;
+        _nextShot = next;
+      });
+      return;
+    }
+
+    if (type != 'system') return;
     if (payload is! Map) return;
     if (payload['state_available'] != true) return;
     final current = (payload['current_shot'] ?? '') as String;
     if (!mounted) return;
-    setState(() => _currentShot = current);
+    setState(() {
+      _currentShot = current;
+      // 握手消息不带预告，清掉上一次残留：重连后不能继续显示早已过去的预告。
+      _nextShot = '';
+    });
   }
 
   /// 页面切到后台 / 回到前台。
@@ -142,7 +172,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       fontWeight: FontWeight.bold,
                     ),
                   ),
-                  const SizedBox(height: 6),
+const SizedBox(height: 6),
                   Text(
                     // 没有当前机位时不要编一个，直接说明还没开始。
                     _currentShot.isEmpty ? '等待导播切台' : '正在播送：$_currentShot',
@@ -155,6 +185,21 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
                       fontWeight: FontWeight.w600,
                     ),
                   ),
+                  // 预告单独一行。跟「正在播送」挤在一行时两个信息会互相
+                  // 抢注意力，而它们要回答的是两个不同问题：
+                  // 现在镜头在哪（要不要动）、马上要切到哪（要不要准备）。
+                  if (_nextShot.isNotEmpty) ...[
+                    const SizedBox(height: 4),
+                    Text(
+                      '即将切到：$_nextShot',
+                      textAlign: TextAlign.center,
+                      style: TextStyle(
+                        color: Colors.amberAccent,
+                        fontSize: 15,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),

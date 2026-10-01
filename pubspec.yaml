@@ -1,7 +1,7 @@
 name: interviewer
 description: "采访端 - 一键切换采访状态"
 publish_to: 'none'
-version: 1.4.0+1
+version: 1.4.2+1
 
 environment:
   sdk: ^3.12.2
@@ -13,15 +13,30 @@ dependencies:
   web_socket_channel: ^3.0.2
   # http 用于运行期读取同目录的 config.json（见 lib/main.dart 的 loadRuntimeConfig）
   http: ^1.3.0
-# shared_preferences 已移除：代码里从未 import 过它，采访端的服务器地址走
-# config.json 运行期覆盖，不需要本地键值存储。留着会拖进
-# shared_preferences_android 原生模块，在 Windows 上构建 APK 时会让
-# Kotlin 增量缓存崩掉（Could not close incremental caches ... .tab）。
+  # web 只被 lib/services/token_store_web.dart 用到（localStorage 存 JWT）。
+  # 采访端的主战场就是浏览器里的这个页面，所以它是常态路径而不是预留。
+  # 声明它是因为 dart:html 已废弃，Flutter Web 编译目标只认 package:web。
+  web: ^1.1.0
+# shared_preferences 已移除：现在只存一个 JWT 字符串，改用 MainActivity 里的
+# 平台通道（见 lib/services/token_store_native.dart）。
+# shared_preferences 会拖进 shared_preferences_android 原生模块，在 Windows 上
+# 构建 APK 时会让 Kotlin 增量缓存崩掉（Could not close incremental caches ... .tab）。
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
   flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
+
+flutter_launcher_icons:
+  # 只配 Android：采访端虽然主要跑在浏览器里，但 APK 也发，没有 ios/ 目录。
+  # 写上 `ios: true` 会让生成器去找 ios/Runner/Assets.xcassets/... 然后抛
+  # PathNotFoundException，图标一个都生成不出来。
+  android: "launcher_icon"
+  image_path: "assets/favicon.png"
+  # 自适应图标的背景色。不设的话背景会取图片左上角那个像素，
+  # 于是图标在不同机型上有一圈说不清的颜色。
+  adaptive_icon_background: "#1C1A1B"
 
 flutter:
   uses-material-design: true

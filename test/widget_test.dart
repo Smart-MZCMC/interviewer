@@ -5,6 +5,8 @@
 // "A Timer is still pending even after the widget tree was disposed" 断言拦下。
 // 注入假对象之后，这个测试不依赖任何真实服务器——换服务器地址不会让它变红。
 
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -16,6 +18,30 @@ import 'package:interviewer/services/websocket_service.dart';
 class _FakeWsService extends WebSocketService {
   @override
   void connect() {}
+}
+
+/// 能主动往界面推消息的假服务，用来验证实时切台状态的处理。
+///
+/// 直接复用真实的 [messageStream]，所以走的是 HomeScreen 里真正的
+/// _onMessage，而不是另写一条测试专用通路——那样测的就不是线上代码了。
+class _PushableWsService extends WebSocketService {
+  final _controller = StreamController<Map<String, dynamic>>.broadcast();
+
+  @override
+  Stream<Map<String, dynamic>> get messageStream => _controller.stream;
+
+  @override
+  void connect() {}
+
+  void push(Map<String, dynamic> message) => _controller.add(message);
+}
+
+/// 推完消息后排空队列再断言。
+///
+/// 消息经 StreamController.broadcast 异步送达，setState 落在微任务里；
+/// 单次 pump() 建帧时它还没跑完，界面上就表现为「消息收到了但没反应」。
+Future<void> deliver(WidgetTester tester) async {
+  await tester.pumpAndSettle();
 }
 
 Widget _app() => MaterialApp(home: HomeScreen(service: _FakeWsService()));
@@ -33,6 +59,63 @@ void main() {
 
     expect(find.text('准备中'), findsOneWidget);
     expect(find.text('未就绪'), findsNothing);
+  });
+
+  // 回归：采访端此前只认握手时的 system 消息，切台广播 shot_state 被直接丢掉，
+  // 于是整个直播期间屏幕上的机位一直停在刚连上那一刻的值——切了台也不变。
+  testWidgets('收到 shot_state 时实时更新正在播送的机位', (WidgetTester tester) async {
+    final service = _PushableWsService();
+    await tester.pumpWidget(MaterialApp(home: HomeScreen(service: service)));
+    await tester.pump();
+
+    // 还没连上时不要编一个机位出来。
+    expect(find.text('等待导播切台'), findsOneWidget);
+
+    service.push({
+      'type': 'system',
+      'payload': {'state_available': true, 'current_shot': '1000米'}
+    });
+    await deliver(tester);
+    expect(find.text('正在播送：1000米'), findsOneWidget);
+
+    service.push({
+      'type': 'shot_state',
+      'payload': {'current': '跳远', 'next': '1000米'}
+    });
+    await deliver(tester);
+    expect(find.text('正在播送：跳远'), findsOneWidget);
+    expect(find.text('即将切到：1000米'), findsOneWidget);
+
+    // 切走之后预告要清掉，否则屏幕上会一直挂着早已过去的预告。
+    service.push({
+      'type': 'shot_state',
+      'payload': {'current': '1000米', 'next': ''}
+    });
+    await deliver(tester);
+    expect(find.text('正在播送：1000米'), findsOneWidget);
+    expect(find.text('即将切到：1000米'), findsNothing);
+  });
+
+  // 握手消息不带预告，所以重连时必须把上一次残留的预告清掉。
+  testWidgets('重连后的握手消息清掉上一次残留的预告', (WidgetTester tester) async {
+    final service = _PushableWsService();
+    await tester.pumpWidget(MaterialApp(home: HomeScreen(service: service)));
+    await tester.pump();
+
+    service.push({
+      'type': 'shot_state',
+      'payload': {'current': '跳远', 'next': '1000米'}
+    });
+    await deliver(tester);
+    expect(find.text('即将切到：1000米'), findsOneWidget);
+
+    service.push({
+      'type': 'system',
+      'payload': {'state_available': true, 'current_shot': '跳高'}
+    });
+    await deliver(tester);
+    expect(find.text('正在播送：跳高'), findsOneWidget);
+    expect(find.text('即将切到：1000米'), findsNothing);
   });
 
   test('applyRuntimeConfig 逐字段校验，非法值不覆盖默认值', () {

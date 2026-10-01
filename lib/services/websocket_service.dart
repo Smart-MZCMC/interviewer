@@ -66,6 +66,7 @@ class WebSocketService {
           _connecting = false;
           _connectionController.add(false);
           _channel = null;
+          _rejectTokenIfUnauthorized();
           _reconnectTimer?.cancel();
           if (!_intentionalClose) {
             // 连接断了就没法再用 WebSocket 通知服务端，改走 HTTP。
@@ -78,6 +79,7 @@ class WebSocketService {
           _connecting = false;
           _connectionController.add(false);
           _channel = null;
+          _rejectTokenIfUnauthorized();
           if (!_intentionalClose) {
             unawaited(_postStatus(AppConfig.statusOffline));
             _scheduleReconnect();
@@ -134,20 +136,40 @@ class WebSocketService {
   ///
   /// 进入后台时上报 offline；回到前台时把用户选定的状态再报一次，
   /// 否则导播端会一直停在红色「离线」上。
+  ///
+  /// 这里**不碰登录令牌**。此前回到前台会调一次 `AuthService.clear()`，
+  /// 于是每次切走再切回来都要重新登录一轮——而令牌多半根本没过期。
+  /// 「切后台」不是「凭据被拒」，真正的拒绝只有握手 401 那一种，
+  /// 由 [_rejectTokenIfUnauthorized] 处理。
   void setHidden(bool hidden) {
     if (_hidden == hidden) return;
     _hidden = hidden;
     if (hidden) {
       _sendStatus(AppConfig.statusOffline);
     } else {
-      // 令牌可能已经过期（后台放久了），重连时会重新登录。
-      AuthService.clear();
       if (_channel == null) {
         connect();
       } else {
         updateStatus(_lastStatus);
       }
     }
+  }
+
+  /// 握手被 401 拒绝时丢掉本地令牌，让下一轮 ensureToken 重新登录。
+  ///
+  /// 浏览器端的 WebSocket 不会把 HTTP 状态码交给 JS，`error` 事件的类型是
+  /// `'WebSocketNetworkError'`，拿不到 401。所以只能在**没收到欢迎消息**
+  /// 时判定：能连上就说明握手过了，收不到就是没过。真正的 403（不是项目成员）
+  /// 会先在服务端打日志，这里不区分，一律当作需要换一个新令牌。
+  ///
+  /// 关键是不能对每一次握手失败都清令牌：网络抖动、后端重启期间都会失败，
+  /// 那时清掉令牌只会让重连永远拿不到凭据。判据必须是「令牌被拒」，
+  /// 而 welcome 消息是握手成功的唯一确证。
+  void _rejectTokenIfUnauthorized() {
+    if (_channel != null) return;
+    if (AuthService.token == null) return;
+    debugPrint('[Auth] 握手未收到欢迎消息，令牌可能已失效');
+    AuthService.clear();
   }
 
   void updateStatus(String status) {

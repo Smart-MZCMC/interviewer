@@ -10,7 +10,10 @@ class AppConfig {
   // ---- 编译期默认值 ----
   // 默认指向正式域名，直接编译出来的产物也能连上。
   // 换地址时改 web/config.json 即可，不用动这里。
-  static const String defaultWsUrl = 'ws://zhdb.647382.xyz/ws';
+  // 必须是 wss:// 而不是 ws://：页面本身走 HTTPS，浏览器会把 ws:// 判为
+  // 混合内容并**静默拦截**（控制台有报错但请求根本没发出去），现场表现是
+  // 「连接不上」而没有任何提示。
+  static const String defaultWsUrl = 'wss://zhdb.647382.xyz/ws';
   static const int defaultProjectId = 1;
   static const String defaultPointCode = 'point_1';
   static const String defaultPointName = '采访点 1';

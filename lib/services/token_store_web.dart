@@ -10,6 +10,9 @@ import 'package:web/web.dart' as web;
 /// 安全性上没有额外收益可谈：这个应用的账号口令本来就在同目录的
 /// config.json 里明文下发，XSS 早就能拿到比令牌更值钱的东西。
 class TokenStore {
+  /// 见 token_store_native.dart 里的同名常量。
+  static const String storageKind = 'web';
+
   static const String _key = 'mzcmc.jwt';
 
   Future<String?> read() async {

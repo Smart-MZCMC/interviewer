@@ -22,8 +22,16 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   // late final 才能在初始化器里读 widget。
   late final WebSocketService _wsService = widget.service ?? WebSocketService();
   StreamSubscription<bool>? _connectionSubscription;
+  StreamSubscription<Map<String, dynamic>>? _messageSubscription;
   String _currentStatus = AppConfig.statusNotReady;
   bool _isConnected = false;
+
+  /// 当前正在播送的机位。来自服务端握手时下发的项目状态。
+  ///
+  /// 记者需要知道现在画面在哪个机位——它决定了自己该不该出现在镜头里。
+  /// 这个值以前是拿不到的：切台状态只在新的 shot_state 到来时广播一次，
+  /// 采访端中途连上或重连后完全不知道当前在播什么。
+  String _currentShot = '';
 
   @override
   void initState() {
@@ -34,7 +42,18 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
         setState(() => _isConnected = connected);
       }
     });
+    _messageSubscription = _wsService.messageStream.listen(_onMessage);
     _wsService.connect();
+  }
+
+  void _onMessage(Map<String, dynamic> msg) {
+    if (msg['type'] != 'system') return;
+    final payload = msg['payload'];
+    if (payload is! Map) return;
+    if (payload['state_available'] != true) return;
+    final current = (payload['current_shot'] ?? '') as String;
+    if (!mounted) return;
+    setState(() => _currentShot = current);
   }
 
   /// 页面切到后台 / 回到前台。
@@ -52,6 +71,7 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _connectionSubscription?.cancel();
+    _messageSubscription?.cancel();
     _wsService.dispose();
     super.dispose();
   }
@@ -106,19 +126,36 @@ class _HomeScreenState extends State<HomeScreen> with WidgetsBindingObserver {
             // 版本提示。低于最低适配版本时部分功能会异常，采访员该在按下
             // 状态键之前就看到，而不是等播送中断才发现客户端太旧。
             VersionBanner(serverUrl: AppConfig.serverUrl),
-            // 顶部：采访点名称
+            // 顶部：采访点名称 + 当前播送机位
             Container(
               width: double.infinity,
               padding: const EdgeInsets.symmetric(vertical: 20),
               color: Colors.grey.shade900,
-              child: Text(
-                AppConfig.pointName,
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                ),
+              child: Column(
+                children: [
+                  Text(
+                    AppConfig.pointName,
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    // 没有当前机位时不要编一个，直接说明还没开始。
+                    _currentShot.isEmpty ? '等待导播切台' : '正在播送：$_currentShot',
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: _currentShot.isEmpty
+                          ? Colors.white.withValues(alpha: 0.45)
+                          : Colors.lightGreenAccent,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ],
               ),
             ),
 

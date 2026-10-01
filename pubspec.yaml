@@ -1,7 +1,7 @@
 name: interviewer
 description: "采访端 - 一键切换采访状态"
 publish_to: 'none'
-version: 1.2.0+1
+version: 1.3.0+1
 
 environment:
   sdk: ^3.12.2

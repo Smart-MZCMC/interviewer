@@ -1,4 +1,13 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
+    <!--
+        INTERNET 必须声明在 main 里，不能只放在 src/debug/AndroidManifest.xml。
+
+        Flutter 模板默认只在 debug manifest 里声明它，注释写着「required for
+        development」——但这是错的：这个权限 release 版同样需要。后果是 debug
+        一切正常，release APK 却完全没有联网权限，所有 HTTP / WebSocket 请求
+        直接失败，而界面只会说「登录失败」。
+    -->
+    <uses-permission android:name="android.permission.INTERNET"/>
     <application
         android:label="智汇导播采访端"
         android:name="${applicationName}"
